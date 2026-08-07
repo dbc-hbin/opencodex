@@ -342,7 +342,12 @@ export function gajaeConfigPath(env: OpencodeLaunchEnv = process.env, home: stri
 /** omp's config root, matching oh-my-pi's `path.join(homedir(), PI_CONFIG_DIR || ".omp")`. */
 export function ompHomeDir(env: OpencodeLaunchEnv = process.env, home: string = homedir()): string {
   const override = env.PI_CONFIG_DIR?.trim();
-  return join(home, override && override.length > 0 ? override : ".omp");
+  if (!override || override.length === 0) return join(home, ".omp");
+  // Same boundary as PI_CODING_AGENT_DIR: a relative PI_CONFIG_DIR names a
+  // directory whose meaning depends on the working directory, so opencodex and
+  // a separately launched omp would resolve it differently and the toggle could
+  // report current after writing a file omp never reads.
+  return absoluteClientPath(override, home, "PI_CONFIG_DIR");
 }
 
 /**
@@ -842,15 +847,21 @@ function buildOmpClientConfig(ctx: ExportContext): OmpGeneratedConfig {
       entry.maxTokens = outputBudgetFor(context);
     }
     // omp only exposes reasoning-effort controls when the model declares a
-    // thinking block; without it omp sends no reasoning_effort at all.
-    const efforts = model.reasoningEfforts?.filter(effort => ompAcceptsEffort(effort)) ?? [];
+    // thinking block; without it omp sends no reasoning_effort at all. Emit
+    // only normalized vocabulary values and clamp defaultLevel to the emitted
+    // subset so one out-of-vocabulary entry cannot fail the whole provider.
+    const efforts = [...new Set(model.reasoningEfforts?.flatMap(effort => {
+      const normalized = effort.trim().toLowerCase();
+      return ompAcceptsEffort(normalized) ? [normalized] : [];
+    }) ?? [])];
+    const defaultLevel = model.defaultReasoningEffort?.trim().toLowerCase();
     if (efforts.length > 0) {
       entry.reasoning = true;
       entry.thinking = {
         mode: "effort",
         efforts,
-        ...(model.defaultReasoningEffort && ompAcceptsEffort(model.defaultReasoningEffort)
-          ? { defaultLevel: model.defaultReasoningEffort }
+        ...(defaultLevel && efforts.includes(defaultLevel)
+          ? { defaultLevel }
           : {}),
       };
     }

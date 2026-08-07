@@ -314,14 +314,19 @@ async function fetchCommandCode(request: AdapterRequest, ctx: AdapterFetchContex
   }
 }
 
-function supportedCommandCodeEffort(provider: OcxProviderConfig, modelId: string, requested: string | undefined): string | undefined {
-  if (!requested || requested === "none") return undefined;
-  // Compatibility ids (deepseek-v4-flash / glm-5.2) must resolve to their canonical
-  // Command Code id before the effort lookup, or legacy requests silently lose the
-  // reasoning effort because the official table is keyed by the canonical ids.
-  // omp and other OpenAI-compatible clients dial with the namespaced selector
-  // (command-code/deepseek-deepseek-v4-flash, inner "/" encoded as "-"), so
-  // decode it back against the official effort table before the lookup.
+/**
+ * Resolve a caller-supplied model id to the canonical Command Code id.
+ *
+ * Compatibility ids (deepseek-v4-flash / glm-5.2) must resolve to their canonical
+ * Command Code id before the effort lookup, or legacy requests silently lose the
+ * reasoning effort because the official table is keyed by the canonical ids.
+ * omp and other OpenAI-compatible clients dial with the namespaced selector
+ * (command-code/deepseek-deepseek-v4-flash, inner "/" encoded as "-"), so
+ * decode it back against the official effort table before the lookup. The SAME
+ * canonical id is what `/alpha/generate` expects in `params.model`: shipping the
+ * selector there passes reasoning_effort but fails model resolution upstream.
+ */
+function canonicalCommandCodeModelId(modelId: string): string {
   const aliased = COMMAND_CODE_MODEL_ALIASES[modelId] ?? modelId;
   const knownIds = [...new Set([
     ...Object.keys(COMMAND_CODE_MODEL_REASONING_EFFORTS),
@@ -330,7 +335,18 @@ function supportedCommandCodeEffort(provider: OcxProviderConfig, modelId: string
   // Strip the provider prefix first: decodeRoutedModelId expects the encoded
   // id portion (deepseek-deepseek-v4-flash), not the full command-code/ slug.
   const encodedId = aliased.startsWith("command-code/") ? aliased.slice("command-code/".length) : aliased;
-  const canonicalId = decodeRoutedModelId(encodedId, knownIds);
+  return decodeRoutedModelId(encodedId, knownIds);
+}
+
+function supportedCommandCodeEffort(provider: OcxProviderConfig, modelId: string, requested: string | undefined): string | undefined {
+  if (!requested || requested === "none") return undefined;
+  // Compatibility ids (deepseek-v4-flash / glm-5.2) must resolve to their canonical
+  // Command Code id before the effort lookup, or legacy requests silently lose the
+  // reasoning effort because the official table is keyed by the canonical ids.
+  // omp and other OpenAI-compatible clients dial with the namespaced selector
+  // (command-code/deepseek-deepseek-v4-flash, inner "/" encoded as "-"), so
+  // decode it back against the official effort table before the lookup.
+  const canonicalId = canonicalCommandCodeModelId(modelId);
   const supported = commandCodeReasoningEfforts(canonicalId) ?? configuredReasoningEfforts(provider, canonicalId);
   if (!supported) return undefined;
   // Command Code's official profiles describe xhigh and ultra as the CLI labels that map to
@@ -359,7 +375,7 @@ export function createCommandCodeAdapter(provider: OcxProviderConfig): ProviderA
         config: await commandCodeConfig(cwd), memory: "", taste: null, skills: null,
         permissionMode: "standard", mode: "agent",
         params: {
-          model: COMMAND_CODE_MODEL_ALIASES[parsed.modelId] ?? parsed.modelId,
+          model: canonicalCommandCodeModelId(parsed.modelId),
           messages: wireMessages(parsed.context.messages),
           tools: wireTools(tools),
           system,

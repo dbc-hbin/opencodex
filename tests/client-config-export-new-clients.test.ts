@@ -279,9 +279,20 @@ describe("omp", () => {
     expect(ompConfigPath({}, "/home/u")).toBe(join("/home/u", ".omp", "agent", "models.yml"));
   });
 
-  test("PI_CONFIG_DIR relocates the whole root, agent directory included", () => {
-    expect(ompConfigPath({ PI_CONFIG_DIR: "custom-omp" }, "/home/u"))
-      .toBe(join("/home/u", "custom-omp", "agent", "models.yml"));
+  test("PI_CONFIG_DIR relocates the whole root when absolute", () => {
+    expect(ompConfigPath({ PI_CONFIG_DIR: "/custom/omp" }, "/home/u"))
+      .toBe(join("/custom/omp", "agent", "models.yml"));
+  });
+
+  test("a relative PI_CONFIG_DIR is refused like PI_CODING_AGENT_DIR", () => {
+    // Same boundary as the agent-dir override: a relative root names a directory
+    // whose meaning depends on the working directory, so opencodex and omp would
+    // resolve it differently and the toggle could report current after writing a
+    // file omp never reads.
+    expect(() => ompHomeDir({ PI_CONFIG_DIR: "custom-omp" }, "/home/u"))
+      .toThrow(/PI_CONFIG_DIR must be an absolute path/);
+    expect(() => ompConfigPath({ PI_CONFIG_DIR: "custom-omp" }, "/home/u"))
+      .toThrow(/PI_CONFIG_DIR must be an absolute path/);
   });
 
   test("an existing models.yaml is honored when models.yml is absent", () => {

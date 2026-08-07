@@ -184,7 +184,15 @@ describe("GET /api/client-config", () => {
 
   test("native model rows carry reasoning metadata into omp exports", async () => {
     const rows = await modelRows(baseConfig());
-    const native = rows.find(row => row.native && (row.reasoningEfforts?.length ?? 0) > 0);
+    // Pick a native row whose default is inside the omp effort vocabulary, so the
+    // assertion also pins thinking.defaultLevel (a regression that drops the
+    // default would otherwise pass while still exporting efforts).
+    const native = rows.find(row =>
+      row.native
+      && (row.reasoningEfforts?.length ?? 0) > 0
+      && row.defaultReasoningEffort !== undefined
+      && row.reasoningEfforts!.some(effort => effort.trim().toLowerCase() === row.defaultReasoningEffort!.trim().toLowerCase()),
+    );
     expect(native).toBeDefined();
     const doc = buildClientConfig("omp", {
       baseUrl: "http://127.0.0.1:10100/v1",
@@ -194,6 +202,7 @@ describe("GET /api/client-config", () => {
     const exported = doc.providers[OPENCODE_PROVIDER_ID]!.models[0]!;
     expect(exported.reasoning).toBe(true);
     expect(exported.thinking?.efforts.length).toBeGreaterThan(0);
+    expect(exported.thinking?.defaultLevel).toBe(native!.defaultReasoningEffort!.trim().toLowerCase());
   }, 15_000);
 
   test("counts describe the emitted document, including models without limits", async () => {

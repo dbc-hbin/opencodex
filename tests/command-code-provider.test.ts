@@ -216,6 +216,9 @@ describe("Command Code provider", () => {
     // effort lookup must decode it back against the official table.
     const ompNamespaced = await builtRequest({ ...parsed(), modelId: "command-code/deepseek-deepseek-v4-flash" });
     expect(JSON.parse(ompNamespaced.body).params.reasoning_effort).toBe("high");
+    // The canonical id must reach /alpha/generate too: shipping the selector
+    // there passes reasoning_effort but fails model resolution upstream.
+    expect(JSON.parse(ompNamespaced.body).params.model).toBe("deepseek/deepseek-v4-flash");
   });
 
   test("filters tool declarations when tool_choice disables tools", async () => {

@@ -36,10 +36,11 @@ providers:
         maxTokens: 32000
 ```
 
-`api: openai-completions` selects omp's OpenAI-compatible adapter, which talks
-to the proxy's `/v1` surface. `$OPENCODEX_OMP_API_KEY` is only omp's local
-provider key for the `opencodex` entry — it is not an opencodex OAuth or
-access-token credential, and opencodex never sees its value.
+`api: openai-completions` configures omp to target OpenAI Chat Completions
+through the `openai-chat`-compatible wire format at the proxy's `/v1` surface.
+`$OPENCODEX_OMP_API_KEY` is only omp's local provider key for the `opencodex`
+entry — it is not an opencodex OAuth or access-token credential, and opencodex
+never sees its value.
 
 Merge the `providers.opencodex` block into `~/.omp/agent/models.yml` (do not
 replace the rest of the file), then start a new omp session. The models appear

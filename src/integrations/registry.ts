@@ -19,7 +19,7 @@ import {
   kimiConfigPath,
   kimiHomeDir,
   ompConfigPath,
-  ompHomeDir,
+  ompAgentDir,
   opencodeGlobalConfigPath,
   openclawConfigPath,
   openclawHomeDir,
@@ -73,7 +73,10 @@ export const INTEGRATION_CLIENTS: Record<IntegrationClientId, IntegrationClientS
   omp: {
     id: "omp",
     configPath: (env = process.env, home = homedir()) => ompConfigPath(env, home),
-    detectDir: (env = process.env, home = homedir()) => ompHomeDir(env, home),
+    // Follow ompAgentDir, not ompHomeDir: when PI_CODING_AGENT_DIR (or a profile)
+    // points at an existing agent directory while the default root is absent,
+    // the config we would write into the override must count as "installed".
+    detectDir: (env = process.env, home = homedir()) => ompAgentDir(env, home),
   },
   hermes: {
     id: "hermes",
